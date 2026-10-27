@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="color-scheme" content="light">
+<title>日報</title>
+<style>
+*{-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#f4f4f5;color:#09090b;font:16px/1.65 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;-webkit-font-smoothing:antialiased}
+main{padding:calc(20px + env(safe-area-inset-top)) 18px 120px}
+h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0 0 12px}h2{font-size:16px;font-weight:700;margin:26px 0 8px}
+label{display:block;font-weight:600;font-size:14px;color:#52525b;margin:16px 0 6px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;gap:4px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.88);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid #e4e4e7}
+nav button{flex:1;height:48px;border:0;border-radius:14px;background:transparent;color:#71717a;font-size:14px;font-weight:600}nav .on{background:#09090b;color:#fff}
+button{font:inherit;font-weight:600;min-height:48px;border:1px solid #d4d4d8;background:#fff;color:#09090b;border-radius:14px;padding:0 18px;transition:transform .08s}
+button:active{transform:scale(.97)}.p{background:#09090b;color:#fff;border-color:#09090b}.big{width:100%;margin-top:12px}
+input,textarea{font:inherit;width:100%;box-sizing:border-box;border:1px solid #d4d4d8;border-radius:14px;padding:12px 14px;background:#fff;color:#09090b;outline:0}
+input:focus,textarea:focus{border-color:#09090b;box-shadow:0 0 0 3px rgba(9,9,11,.08)}textarea{resize:vertical;line-height:1.6}
+.card{background:#fff;border:1px solid #e4e4e7;border-radius:20px;padding:16px;margin:12px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}.fin{background:#ececee;border-color:#ececee;box-shadow:none}.fin textarea{background:#fff}
+.r{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.x{min-height:34px;width:34px;padding:0;border-radius:50%;color:#71717a}
+.tm{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:6px 0 10px;font-variant-numeric:tabular-nums}.tm:empty{display:none}.tm a{text-decoration:none;border-bottom:2px solid #09090b}
+.row{display:flex;gap:8px}.row input{flex:1}.seg{background:#e4e4e7;padding:4px;border-radius:16px}.seg button{flex:1;border:0;background:transparent;border-radius:12px}.seg .p{background:#09090b}
+.sm{font-size:14px;color:#71717a}.wd{gap:6px}.wd button{flex:1;padding:0;min-width:0}
+#t{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#09090b;color:#fff;padding:12px 20px;border-radius:999px;display:none;z-index:9;font-weight:600}
+</style></head><body><main id="v"></main><nav id="n"></nav><div id="t"></div>
+<script>
+const K='nippo1',WN='日月火水木金土',TABS=[['today','今日'],['tpl','予定'],['money','収支'],['rep','日報'],['set','設定']];
+const SAMPLE='朝6:30に起きる\n朝食を食べる\n7:30に家を出る\n帰宅する\n昼食を食べる\n動画編集を進める\n17:10〜18:50までオンライン授業を受ける\n夕食を食べる\n自重トレーニングを行う\n23:00からけいしろうさんと電話する';
+let D;try{D=JSON.parse(localStorage.getItem(K))}catch(e){}
+D=D||{tpl:{0:SAMPLE,1:SAMPLE,2:SAMPLE,3:SAMPLE,4:SAMPLE,5:SAMPLE,6:SAMPLE},days:{},base:{'2026-10':110560},hist:[],no:39,prev:{'2026-10':40361},key:'',model:'gpt-4o-mini',quote:'経済的・精神的に自立し、大切な人に恩返しをしながら、お金を理由にやりたいことを諦めない人生を作る。',draft:null};
+let tab='today',sel=new Date().getDay(),mt='out';
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}};
+const pad=n=>String(n).padStart(2,'0'),f=n=>Number(n).toLocaleString('ja-JP');
+const ds=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const hm=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const today=()=>ds(new Date()),tom=()=>{const d=new Date();d.setDate(d.getDate()+1);return ds(d)};
+const wd=s=>new Date(s+'T00:00:00').getDay(),uid=()=>Math.random().toString(36).slice(2,9);
+const lines=v=>v.split('\n').map(x=>x.trim()).filter(Boolean);
+function day(s){if(!D.days[s]){D.days[s]={plan:lines(D.tpl[wd(s)]||'').map(n=>({id:uid(),n})),top:'',money:[]};save()}return D.days[s]}
+const F=id=>day(today()).plan.find(i=>i.id==id);
+const snap=(l,id)=>{const f=F(id);D.undo={d:today(),l:l+'：'+(f?f.n:''),p:JSON.stringify(day(today()).plan)}},undo=()=>{if(D.undo&&D.undo.d==today()){day(today()).plan=JSON.parse(D.undo.p);D.undo=null;save();R()}};
+function T(m){const t=document.getElementById('t');t.textContent=m;t.style.display='block';clearTimeout(T.h);T.h=setTimeout(()=>t.style.display='none',Math.max(1800,m.length*140))}
+function cf(m,fn){window._f=fn;const d=document.createElement('div');d.id='cf';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99;padding:24px';d.innerHTML=`<div class=card style="width:100%;margin:0"><p style="margin:0 0 12px;font-weight:600">${m}</p><div class=row><button style="flex:1" onclick="cfx()">やめる</button><button class=p style="flex:1" onclick="cfx(1)">実行</button></div></div>`;document.body.appendChild(d)}
+function cfx(y){document.getElementById('cf').remove();if(y)window._f()}
+function rst(){try{const o=JSON.parse(document.getElementById('bk').value);o.key=D.key;D=o;save();R();T('復元しました')}catch(e){T('形式が違います')}}
+function cp(x){const ok=()=>T('コピーしました');if(navigator.clipboard)navigator.clipboard.writeText(x).then(ok).catch(()=>fb());else fb();
+function fb(){const a=document.createElement('textarea');a.value=x;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
+const line=x=>{location.href='https://line.me/R/msg/text/?'+encodeURIComponent(x)};
+function go(t){tab=t;R();scrollTo(0,0)}
+function R(){document.getElementById('v').innerHTML=V[tab]();document.getElementById('n').innerHTML=TABS.map(([k,l])=>`<button class="${k==tab||(tab=='close'&&k=='today')?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function mon(date){const ym=date.slice(0,7);let e=0,i=0;for(const k in D.days)if(k.slice(0,7)==ym&&k<=date)for(const m of D.days[k].money||[])m.t=='in'?i+=m.a:e+=m.a;e+=(D.prev||{})[ym]||0;const b=D.base[ym]||0;return{e,i,b,bal:b-e+i}}
+
+/* 今日 */
+function card(i){const a=`'${i.id}'`;return `<div class="card ${i.e?'fin':''}"><div class=r><b>${esc(i.n)}</b><div class=row style="flex:none">${i.s?`<button class=x onclick="rs(${a})">↺</button>`:''}${i.x?`<button class=x onclick="del(${a})">×</button>`:''}</div></div>
+<div class=tm>${i.s?tl(i,'s'):''}${i.s&&i.e&&i.s!=i.e?' 〜 ':''}${i.e&&i.s!=i.e?tl(i,'e'):''}</div>
+${!i.s?`<div class=row><button class=p style="flex:1" onclick="st(${a})">開始</button><button style="flex:1" onclick="one(${a})">完了</button></div>`:!i.e?`<button class=p onclick="en(${a})">終了</button>`:`<textarea rows=2 placeholder="なぜできた？（一言でOK）" oninput="W(${a},this.value)">${esc(i.why)}</textarea>`}</div>`}
+const rs=id=>{snap('リセット',id);const i=F(id);delete i.s;delete i.e;delete i.why;save();R()},one=id=>{snap('完了',id);const i=F(id);i.s=i.e=hm();save();R()},st=id=>{snap('開始',id);F(id).s=hm();save();R()},en=id=>{snap('終了',id);const i=F(id);i.e=hm();if(!i.s)i.s=i.e;save();R()};
+const W=(id,v)=>{F(id).why=v;save()},del=id=>{snap('削除',id);const d=day(today());d.plan=d.plan.filter(i=>i.id!=id);save();R()};
+let EDT=null;
+const ed=(id,k)=>{EDT={id,k};R()};
+function tl(i,k){if(EDT&&EDT.id==i.id&&EDT.k==k){const v=i[k].split(':').map(x=>pad(+x)).join(':');return `<input type=time id=te value="${v}" style="width:auto;font-size:20px"> <button class=p style="min-height:40px" onclick="tsv('${i.id}','${k}')">保存</button>`}return `<a onclick="ed('${i.id}','${k}')">${i[k]}</a>`}
+function tsv(id,k){const v=document.getElementById('te').value;EDT=null;if(v){snap('時刻修正',id);const i=F(id),same=i.s==i.e;i[k]=v;if(same)i.s=i.e=v;save()}R()}
+function add(){const v=document.getElementById('nn').value.trim();if(!v)return;day(today()).plan.push({id:uid(),n:v,x:1});save();R()}
+const d0=new Date();
+function vToday(){const d=day(today());return `<h1>${d0.getMonth()+1}/${d0.getDate()}（${WN[d0.getDay()]}）</h1>
+${D.undo&&D.undo.d==today()?`<div class="card r" style="align-items:center"><span class=sm>直前の操作　${esc(D.undo.l)}</span><button class=p onclick="undo()">元に戻す</button></div>`:''}<p class=sm style="margin:0">時刻をタップで修正、↺でやり直し。</p><label>今日最も優先すること</label><input value="${esc(d.top)}" oninput="day(today()).top=this.value;save()">
+${d.plan.length?d.plan.map(card).join(''):'<p>予定がありません。「予定」タブでテンプレを登録するか、下から追加。</p>'}
+<h2>予定外のことを追加</h2><div class=row><input id=nn placeholder="例：友達の買い物に付き添う"><button onclick="add()">追加</button></div>
+<button class=big onclick="cal(today())">今日の予定をカレンダーに書き出す</button><button class="p big" onclick="go('close')">1日を終了する</button>`}
+
+/* 1日終了 */
+function vClose(){const d=day(today()),t=day(tom()),un=d.plan.filter(i=>!i.e);return `<h1>1日の終了</h1>
+${un.length?`<h2>できなかった予定の理由</h2>${un.map(i=>`<div class=card><b>${esc(i.n)}</b><textarea rows=2 placeholder="なぜできなかった？（一言でOK）" oninput="W('${i.id}',this.value)">${esc(i.why)}</textarea></div>`).join('')}`:'<p>全部できました。</p>'}
+<h2>明日の予定（${WN[wd(tom())]}曜）</h2><p class=sm>1行1予定。時間が決まっているものは書き込む。</p>
+<textarea rows=10 oninput="TP(this.value)">${esc(t.plan.map(i=>i.n).join('\n'))}</textarea>
+<label>明日最も優先すること</label><input value="${esc(t.top)}" oninput="day(tom()).top=this.value;save()">
+<p class=sm>収支は入力済み？ <a onclick="go('money')" style="text-decoration:underline">収支へ</a></p>
+<button class=big onclick="cal(tom())">明日の予定をカレンダーに書き出す</button><button class="p big" id=gb onclick="gen()">AIで日報を作る</button>`}
+function TP(v){const t=day(tom()),o=t.plan;t.plan=lines(v).map(n=>o.find(x=>x.n==n)||{id:uid(),n});save()}
+
+/* 収支 */
+function vMoney(){const dt=today(),d=day(dt),m=mon(dt),ym=dt.slice(0,7);return `<h1>${+dt.slice(5,7)}月の収支</h1>
+<label>月初の残高（円）</label><input type=number inputmode=numeric value="${D.base[ym]||''}" oninput="D.base[today().slice(0,7)]=+this.value||0;save()">
+<label>今日より前の累計支出（円）</label><input type=number inputmode=numeric value="${(D.prev||{})[ym]||''}" oninput="(D.prev=D.prev||{})[today().slice(0,7)]=+this.value||0;save()">
+<div class=card><div class=r><span>支出 累計</span><b>${f(m.e)}円</b></div><div class=r><span>収入 累計</span><b>${f(m.i)}円</b></div><div class=r><span>残高</span><b>${f(m.bal)}円</b></div></div>
+<h2>今日の入力</h2><div class="row seg"><button class="${mt=='out'?'p':''}" onclick="mt='out';R()">支出</button><button class="${mt=='in'?'p':''}" onclick="mt='in';R()">収入</button></div>
+<label>金額（円）</label><input id=ma type=number inputmode=numeric><label>内容</label><input id=mm placeholder="例：昼食、バイト代">
+<button class="p big" onclick="addM()">追加</button>
+${d.money.map((x,k)=>`<div class="card r"><span>${x.t=='in'?'収入':'支出'}　${esc(x.m)||'—'}<br><b>${f(x.a)}円</b></span><button class=x onclick="delM(${k})">×</button></div>`).join('')}`}
+function addM(){const a=+document.getElementById('ma').value;if(!a)return T('金額を入力');day(today()).money.push({t:mt,a,m:document.getElementById('mm').value.trim()});save();R()}
+const delM=k=>{day(today()).money.splice(k,1);save();R()};
+
+/* 予定テンプレ */
+function vTpl(){return `<h1>一週間の予定</h1><p class=sm>1行1予定。毎日この内容が自動で入ります。</p>
+<div class="row wd">${[...WN].map((c,i)=>`<button class="${i==sel?'p':''}" onclick="sel=${i};R()">${c}</button>`).join('')}</div>
+<textarea rows=14 style="margin-top:10px" oninput="D.tpl[sel]=this.value;save()">${esc(D.tpl[sel]||'')}</textarea>`}
+
+/* 日報 */
+function vRep(){const r=D.draft;return `<h1>日報</h1>${r?`<textarea id=rt rows=26 oninput="RT(this.value)">${esc(r.text)}</textarea>
+<button class="p big" onclick="fin()">${r.done?'もう一度コピー':'完了（保存してコピー）'}</button>
+<button class=big onclick="line(D.draft.text)">LINEで送る</button><button class=big onclick="cf('下書きを破棄する？',()=>{D.draft=null;save();R()})">破棄</button>`:'<p>下書きはありません。「今日」から1日を終了すると作成されます。</p>'}
+<h2>過去の日報</h2>${D.hist.length?D.hist.map((h,i)=>`<div class=card><b>No.${h.no}</b>　${h.d}<div class=row style="margin-top:8px"><button onclick="cp(D.hist[${i}].text)">コピー</button><button onclick="line(D.hist[${i}].text)">LINE</button><button onclick="cf('この日報を削除する？',()=>{D.hist.splice(${i},1);save();R()})">削除</button></div></div>`).join(''):'<p class=sm>まだありません。</p>'}`}
+function RT(v){D.draft.text=v;if(D.draft.done&&D.hist[0])D.hist[0].text=v;save()}
+function fin(){const r=D.draft;if(!r.done){D.hist.unshift({d:r.date,no:D.no,text:r.text});D.no++;r.done=1;save();R()}cp(r.text)}
+
+/* 設定 */
+function vSet(){return `<h1>設定</h1><label>OpenAI APIキー</label><input type=password value="${esc(D.key)}" oninput="D.key=this.value.trim();save()" placeholder="sk-...">
+<p class=sm>この端末内にだけ保存されます。</p><label>モデル</label><input value="${esc(D.model)}" oninput="D.model=this.value.trim();save()">
+<label>次の日報No.</label><input type=number value="${D.no}" oninput="D.no=+this.value||1;save()">
+<label>冒頭の言葉</label><textarea rows=3 oninput="D.quote=this.value;save()">${esc(D.quote)}</textarea>
+<button class=big onclick="const c={...D,key:''};cp(JSON.stringify(c))">バックアップをコピー</button>
+<label>バックアップの貼り付け</label><textarea id=bk rows=3></textarea><button class=big onclick="rst()">バックアップから復元</button>`}
+const V={today:vToday,close:vClose,money:vMoney,tpl:vTpl,rep:vRep,set:vSet};
+
+/* AI */
+async function gen(){
+ if(!D.key){T('設定でAPIキーを入れてください');return go('set')}
+ const dt=today(),d=day(dt),t=day(tom()),b=document.getElementById('gb');b.disabled=true;b.textContent='作成中…';
+ const rec=d.plan.map(i=>({予定:i.n,開始:i.s||null,終了:i.e||null,理由メモ:i.why||'',予定外:!!i.x}));
+ const sys='あなたは日報を書く本人（大学生）の代筆者です。与えられた記録だけを元に、事実を創作せず、一人称・です/ます調の自然な日本語で書きます。理由メモは短い断片なので、意味を汲んで1〜2文の文章に整えます。JSONのみで返します。キー: d_lines(実際に行ったこと。時刻順の文字列配列。開始と終了が同じ時刻のものは一瞬の出来事で「7:05に起床した」「7:30に家を出た」の形。開始と終了が違うものは「9:15〜11:27まで動画編集に取り組んだ」の形。終了のないものは「21:00から夕食を食べた」の形。未実施は含めない), done(今日できたこと。2〜4段落、段落は空行で区切る。各段落2〜3文で、時刻にも触れる), notdone(できなかったこと。1〜2段落。なければ「特になし」), why_done(なぜできたのか。2〜3段落。理由メモを元に), why_notdone(なぜできなかったのか。1〜2段落。なければ「特になし」), action(明日の改善。各1〜2文を2〜3項目、段落は空行で区切り「〜します」形), summary(総括。段落を空行で区切り、1段落目は今日の流れ、2段落目は良かった点、3段落目は課題、4段落目は今後の行動と明日の予定。最後の段落は必ず「これからもPDCAを継続し、できたことと改善すべきことを明確にしながら、日々の成長につなげていきます。」で終える), score(自己評価の提案、整数0-100)';
+ const usr=JSON.stringify({今日の記録:rec,今日最優先:d.top,明日の予定:t.plan.map(i=>i.n),明日最優先:t.top});
+ let a={};
+ try{const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+D.key},body:JSON.stringify({model:D.model,response_format:{type:'json_object'},messages:[{role:'system',content:sys},{role:'user',content:usr}]})});
+  const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status);a=JSON.parse(j.choices[0].message.content)}
+ catch(e){T('AI作成に失敗: '+e.message+'\nAIなしの下書きを作ります。')}
+ D.draft={date:dt,text:build(a,dt)};save();go('rep')}
+function build(a,dt){
+ const d=D.days[dt],t=day(tom()),m=mon(dt),L=x=>(x||[]).map(s=>'・'+s).join('\n');
+ const dl=a.d_lines||d.plan.filter(i=>i.s).map(i=>i.s+(i.e&&i.e!=i.s?'〜'+i.e:'')+' '+i.n);
+ const fm=k=>{const l=d.money.filter(x=>(x.t=='in')==(k=='in'));return l.length?l.map(x=>`${x.m||'—'} ${f(x.a)}円`).join('\n'):'0円'};
+ const sum=k=>f(d.money.filter(x=>(x.t=='in')==(k=='in')).reduce((s,x)=>s+x.a,0));
+ return `「${D.quote}」
+
+No.${D.no}
+
+【経営会議報告】
+ーーーーー
+
+P（Plan：計画）
+
+今日やる予定だったこと
+
+→
+${L(d.plan.filter(i=>!i.x).map(i=>i.n))}
+
+今日最も優先すること
+
+→${d.top||''}
+
+⸻
+
+D（Do：実行）
+
+実際に行ったこと
+
+→
+${L(dl)}
+
+⸻
+
+C（Check：検証）
+
+・今日できたこと
+
+→
+
+${a.done||''}
+
+・なぜできたのか
+
+→
+
+${a.why_done||''}
+
+・今日できなかったこと
+
+→
+
+${a.notdone||''}
+
+・なぜできなかったのか
+
+→
+
+${a.why_notdone||''}
+
+⸻
+
+A（Action：改善）
+
+→
+
+${a.action||''}
+
+⸻
+
+【明日の予定】
+
+→
+${L(t.plan.map(i=>i.n))}
+
+明日最も優先すること
+
+→${t.top||''}
+
+⸻
+
+・今月の支出管理
+
+キャッシュフロー
+
+→ ${+dt.slice(5,7)}月
+
+・今日の収支管理
+
+${f(m.b)}円 − ${f(m.e)}円${m.i?' ＋ '+f(m.i)+'円':''}＝${f(m.bal)}円
+
+■今日の支出
+
+→
+
+${fm('out')}
+
+■今日の支出合計
+
+→ ${sum('out')}円
+
+■今日の収入
+
+→ ${sum('in')}円
+
+■今月累計支出
+
+→ ${f(m.e)}円
+
+⸻
+
+総括
+
+→
+
+${a.summary||''}
+
+→ 今日の自己評価（100点満点）
+${a.score!=null?a.score+'点':''}`}
+
+/* カレンダー書き出し */
+async function cal(date){T('書き出し中…');try{await cal2(date)}catch(e){T('書き出しエラー: '+e.message)}}
+async function cal2(date){
+ const pl=day(date).plan,z=date.replace(/-/g,''),H=(h,m)=>pad(h)+pad(m)+'00',now=new Date().toISOString().replace(/[-:]/g,'').slice(0,15)+'Z',ev=[];
+ for(const i of pl){let h1,m1,h2,m2,x;
+  if(x=i.n.match(/(\d{1,2}):(\d{2})\s*[〜~～\-ー]\s*(\d{1,2}):(\d{2})/)){[h1,m1,h2,m2]=x.slice(1).map(Number)}
+  else if(x=i.n.match(/(\d{1,2}):(\d{2})/)){h1=+x[1];m1=+x[2];const e=h1*60+m1+30;h2=Math.min(23,Math.floor(e/60));m2=h2==23&&e>=1440?59:e%60}
+  else continue;
+  ev.push(['BEGIN:VEVENT','UID:'+i.id+'-'+z+'@nippo','DTSTAMP:'+now,'DTSTART:'+z+'T'+H(h1,m1),'DTEND:'+z+'T'+H(h2,m2),'SUMMARY:'+i.n.replace(/[\\;,]/g,'\\$&'),'BEGIN:VALARM','TRIGGER:-PT10M','ACTION:DISPLAY','DESCRIPTION:予定','END:VALARM','END:VEVENT'].join('\r\n'))}
+ if(!ev.length)return T('時間つきの予定がありません');
+ const txt='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//nippo//JP\r\n'+ev.join('\r\n')+'\r\nEND:VCALENDAR',file=new File([txt],'yotei-'+z+'.ics',{type:'text/calendar'});
+ try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file]});return}}catch(e){if(e.name=='AbortError')return}
+ const u=URL.createObjectURL(file),a=document.createElement('a');a.href=u;a.download=file.name;document.body.appendChild(a);a.click();a.remove();T(ev.length+'件を書き出しました')}
+R();
+</script></body></html>
