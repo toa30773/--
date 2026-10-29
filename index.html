@@ -37,7 +37,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const today=()=>ds(new Date(Date.now()-4*36e5)),tom=()=>{const d=new Date(Date.now()-4*36e5);d.setDate(d.getDate()+1);return ds(d)};
 const wd=s=>new Date(s+'T00:00:00').getDay(),uid=()=>Math.random().toString(36).slice(2,9);
 const lines=v=>v.split('\n').map(x=>x.trim()).filter(Boolean);
-function day(s){if(!D.days[s]){D.days[s]={plan:lines(D.tpl[wd(s)]||'').map(n=>({id:uid(),n})),top:'',money:[]};save()}return D.days[s]}
+function day(s){if(!D.days[s]){D.days[s]={plan:mkPlan(s),top:'',money:[]};save()}return D.days[s]}
 const F=id=>day(today()).plan.find(i=>i.id==id);
 const snap=(l,id)=>{const f=F(id);D.undo={d:today(),l:l+'：'+(f?f.n:''),p:JSON.stringify(day(today()).plan)}},undo=()=>{if(D.undo&&D.undo.d==today()){day(today()).plan=JSON.parse(D.undo.p);D.undo=null;save();R()}};
 function T(m){const t=document.getElementById('t');t.textContent=m;t.style.display='block';clearTimeout(T.h);T.h=setTimeout(()=>t.style.display='none',Math.max(1800,m.length*140))}
@@ -65,10 +65,10 @@ function tl(i,k){if(EDT&&EDT.id==i.id&&EDT.k==k){const v=i[k].split(':').map(x=>
 function tsv(id,k){const v=document.getElementById('te').value;EDT=null;if(v){snap('時刻修正',id);const i=F(id),same=i.s==i.e;i[k]=v;if(same)i.s=i.e=v;save()}R()}
 function add(){const v=document.getElementById('nn').value.trim();if(!v)return;day(today()).plan.push({id:uid(),n:v,x:1});save();R()}
 const d0=new Date();
-function vToday(){const d=day(today()),d0=new Date(Date.now()-4*36e5);return `<h1>${d0.getMonth()+1}/${d0.getDate()}（${WN[d0.getDay()]}）</h1>${bkBanner()}${vWake()}
+function vToday(){const d=day(today()),d0=new Date(Date.now()-4*36e5);return `<h1>${d0.getMonth()+1}/${d0.getDate()}（${WN[d0.getDay()]}）</h1>${bkBanner()}${vWake()}${vMv()}
 ${D.undo&&D.undo.d==today()?`<div class="card r" style="align-items:center"><span class=sm>直前の操作　${esc(D.undo.l)}</span><button class=p onclick="undo()">元に戻す</button></div>`:''}<p class=sm style="margin:0">時刻をタップで修正、↺でやり直し。</p><label>今日最も優先すること</label><input value="${esc(d.top)}" oninput="day(today()).top=this.value;save()">
 ${TVW()}
-${vGaps()}<h2>予定外のことを追加</h2><div class=row><input id=nn placeholder="例：友達の買い物に付き添う"><button onclick="add()">追加</button></div>
+<h2>予定外のことを追加</h2><div class=row><input id=nn placeholder="例：友達の買い物に付き添う"><button onclick="add()">追加</button></div>
 <button class=big onclick="cal(today())">今日の予定をカレンダーに書き出す</button><button class="p big" onclick="CS=0;go('close')">1日を終了する</button>`}
 
 /* 1日終了 */
@@ -81,14 +81,14 @@ function setT(id,k,v){const i=F(id);if(v)i[k]=v;else delete i[k];save()}
 function addX(){const v=document.getElementById('xn').value.trim();if(!v)return;day(today()).plan.push({id:uid(),n:v,x:1,dd:1});save();R()}
 function stepNext(){if(CS==0){const bad=day(today()).plan.find(i=>MODE(i)=='did'&&!(i.s&&i.e));if(bad)return T('「やった」の時刻を入れてください：'+bad.n)}CS++;R();scrollTo(0,0)}
 function vClose(){const d=day(today()),t=day(tom());let b='';
- if(CS==0){const un=d.plan.filter(i=>!(i.s&&i.e)||i.dd),ok=d.plan.length-un.length;
+ if(CS==0){const P=vp(d),un=P.filter(i=>!(i.s&&i.e)||i.dd),ok=P.length-un.length;
   b=`<p class=sm>押し忘れた予定を、「やった」か「できなかった」に分けてください。</p>${ok?`<p class=sm>記録済み：${ok}件</p>`:''}`+(un.length?un.map(i=>{const m=MODE(i),a=`'${i.id}'`;return `<div class=card><b>${esc(i.n)}</b>
 <div class="row seg" style="margin-top:8px"><button class="${m=='did'?'p':''}" onclick="cm(${a},'did')">やった</button><button class="${m=='not'?'p':''}" onclick="cm(${a},'not')">できなかった</button></div>
 ${m=='did'?`<div class=row style="margin-top:8px"><div style="flex:1"><div class=sm>開始</div><input type=time value="${i.s||''}" onchange="setT(${a},'s',this.value)"></div><div style="flex:1"><div class=sm>終了</div><input type=time value="${i.e||''}" onchange="setT(${a},'e',this.value)"></div></div><textarea rows=2 style="margin-top:8px" placeholder="なぜできた？（任意）" oninput="W(${a},this.value)">${esc(i.why)}</textarea>`:`<textarea rows=2 style="margin-top:8px" placeholder="なぜできなかった？（一言でOK）" oninput="W(${a},this.value)">${esc(i.why)}</textarea>`}</div>`}).join(''):'<div class=card><b>未記録の予定はありません。</b></div>')
   +`<h2>予定外でやったこと</h2><div class=row><input id=xn placeholder="例：友達の買い物に付き添う"><button onclick="addX()">追加</button></div>`}
- else if(CS==1)b=`<label>今日最も優先すること</label><input value="${esc(d.top)}" oninput="day(today()).top=this.value;save()">${vLate()}<label>今日学んだこと（あれば）</label><textarea rows=4 placeholder="例：動画から学んだこと" oninput="day(today()).learn=this.value;save()">${esc(d.learn||'')}</textarea>`;
- else if(CS==2)b=`<p class=sm>${WN[wd(tom())]}曜日の予定です。1行1予定。</p><textarea rows=10 oninput="TP(this.value)">${esc(t.plan.map(i=>i.n).join('\n'))}</textarea><label>明日最も優先すること</label><input value="${esc(t.top)}" oninput="day(tom()).top=this.value;save()"><button class=big onclick="cal(tom())">明日の予定をカレンダーに書き出す</button>`;
- else{const m=mon(today());b=`<h2>今日の収支</h2><div class="row seg"><button class="${mt=='out'?'p':''}" onclick="mt='out';R()">支出</button><button class="${mt=='in'?'p':''}" onclick="mt='in';R()">収入</button></div>
+ else if(CS==1)b=`<label>今日最も優先すること</label><input value="${esc(d.top)}" oninput="day(today()).top=this.value;save()">${vLate()}<label>今日学んだこと（総括に入ります）</label><textarea rows=4 placeholder="例：動画から学んだこと" oninput="day(today()).learn=this.value;save()">${esc(d.learn||'')}</textarea>`;
+ else if(CS==2)b=`<p class=sm>${WN[wd(tom())]}曜日の予定です。1行1予定。</p><textarea rows=10 oninput="TP(this.value)">${esc(t.plan.map(i=>i.n).join('\n'))}</textarea><label>明日最も優先すること</label><input value="${esc(t.top)}" oninput="day(tom()).top=this.value;save()">${vSug()}<button class=big onclick="cal(tom())">明日の予定をカレンダーに書き出す</button>`;
+ else{const m=mon(today());b=`<h2>今日の収支</h2>${mchk(d)}<div class="row seg"><button class="${mt=='out'?'p':''}" onclick="mt='out';R()">支出</button><button class="${mt=='in'?'p':''}" onclick="mt='in';R()">収入</button></div>
 <div class=row style="margin-top:8px"><input id=ma type=number inputmode=numeric placeholder="金額"><input id=mm placeholder="内容"></div><button class=big onclick="addM()">追加</button>
 ${d.money.map((x,k)=>`<div class="card r"><span>${x.t=='in'?'収入':'支出'}　${esc(x.m)||'—'}　<b>${f(x.a)}円</b></span><button class=x onclick="delM(${k})">×</button></div>`).join('')}
 <div class=sm style="margin-top:8px">今月の残高 ${f(m.bal)}円（累計支出 ${f(m.e)}円）</div><button class="p big" id=gb onclick="gen()">AIで日報を作る</button>`}
@@ -109,7 +109,7 @@ function addM(){const a=+document.getElementById('ma').value;if(!a)return T('金
 const delM=k=>{day(today()).money.splice(k,1);save();R()};
 
 /* 予定テンプレ */
-function vTpl(){return `<h1>一週間の予定</h1><p class=sm>1行1予定。毎日この内容が自動で入ります。</p>
+function vTpl(){if(TPV=='shift')return vShift();return `<h1>一週間の予定</h1>${TPS()}<p class=sm>1行1予定。毎日この内容が自動で入ります。</p>
 <div class="row wd">${[...WN].map((c,i)=>`<button class="${i==sel?'p':''}" onclick="sel=${i};R()">${c}</button>`).join('')}</div>
 <textarea rows=14 style="margin-top:10px" oninput="D.tpl[sel]=this.value;save()">${esc(D.tpl[sel]||'')}</textarea>`}
 
@@ -123,11 +123,10 @@ function fin(){const r=D.draft;if(!r.done){D.hist.unshift({d:r.date,no:D.no,text
 
 /* 設定 */
 function vSet(){return `<h1>設定</h1><label>OpenAI APIキー</label><input type=password value="${esc(D.key)}" oninput="D.key=this.value.trim();save()" placeholder="sk-...">
-<p class=sm>この端末内にだけ保存されます。</p><label>モデル</label><input value="${esc(D.model)}" oninput="D.model=this.value.trim();save()">
+<p class=sm>この端末内にだけ保存されます。</p><button class=big onclick="testKey()">APIキーの接続テスト</button><label>モデル</label><input value="${esc(D.model)}" oninput="D.model=this.value.trim();save()">
 <label>次の日報No.</label><input type=number value="${D.no}" oninput="D.no=+this.value||1;save()">
 <label>冒頭の言葉</label><textarea rows=3 oninput="D.quote=this.value;save()">${esc(D.quote)}</textarea>
-<label>場所のキーワード（1行1つ「キー=場所」）</label><textarea rows=6 oninput="D.locText=this.value;save()">${esc(D.locText||DEFLOC)}</textarea><p class=sm>予定名にこの言葉が入ると、その場所とみなします。</p>
-<label>学習した判定：${Object.keys(D.trans).length}件</label><button class=big onclick="cf('学習した判定と修正をリセットする？',()=>{D.trans={};D.gfix={};D.fixlog=[];save();R()})">判定の学習をリセット</button>
+<label>記録ボタンの種類（1行1つ・最大8個）</label><textarea rows=5 oninput="D.btnText=this.value;save()">${esc(D.btnText||BTNDEF)}</textarea><p class=sm>「移動」「休憩」の名前は変えないでください。</p>
 <button class=big onclick="backup()">バックアップをコピー</button><p class=sm>最後のバックアップ：${D.lastBackup?new Date(D.lastBackup).toLocaleDateString('ja-JP'):'まだありません'}</p>
 <label>バックアップの貼り付け</label><textarea id=bk rows=3></textarea><button class=big onclick="rst()">バックアップから復元</button>`}
 const V={today:vToday,close:vClose,money:vMoney,tpl:vTpl,rep:vRep,set:vSet,an:vAn,mand:vMand,mreg:vMreg};
@@ -135,17 +134,17 @@ const V={today:vToday,close:vClose,money:vMoney,tpl:vTpl,rep:vRep,set:vSet,an:vA
 /* AI */
 async function gen(){
  if(!D.key){T('設定でAPIキーを入れてください');return go('set')}
- const dt=today(),d=day(dt),t=day(tom()),b=document.getElementById('gb');b.disabled=true;b.textContent='作成中…';
- const rec=d.plan.map(i=>({予定:i.n,開始:i.s||null,終了:i.e||null,理由メモ:i.why||'',予定外:!!i.x}));
- const sys='あなたは日報を書く本人（大学生）の代筆者です。与えられた記録だけを元に、事実を創作せず、一人称・です/ます調の自然な日本語で書きます。理由メモは短い断片なので、意味を汲んで1〜2文の文章に整えます。過去の日報の見本が渡された場合は、文体・言い回し・段落の長さをそれに合わせます(内容は写さない)。過去2週間のできなかった予定が渡された場合、今日にも当てはまる繰り返しの課題があれば、できなかった理由と改善に、事実の範囲で触れます。起床の記録が渡された場合は、d_linesの最初に「6:58に起床し、目標（曼荼羅チャート）を確認した」の形で入れます。遅れた分が0なら、doneに7:05までに起きられたことを書きます。遅れた分が1以上なら、notdoneに「7:05までに起きる目標に対して◯分遅れた」と書き、why_notdoneに本人の理由メモを文章にし、actionの最初に、次から朝起きるための具体的な改善策を2〜3個、就寝時刻や理由メモを根拠に書きます。曼荼羅の項目は「キー 項目名」の一覧で渡されます。起床・目標確認・日報の継続は判定済みなので対象外とし、他の項目は記録から明らかに達成できたものだけをm_okに入れ、無理に増やしません。今日の重点が渡された場合は、各項目について記録から判定し、m_focusに入れます。学んだことのメモが渡された場合は、learnedに2〜3文で整えます。昨夜の就寝時刻が渡された場合は、就寝が遅かった・早かったことを事実として触れます(睡眠不足などの推測はしない)。JSONのみで返します。キー: d_lines(実際に行ったこと。時刻順の文字列配列。開始と終了が同じ時刻のものは一瞬の出来事で「7:05に起床した」「7:30に家を出た」の形。開始と終了が違うものは「9:15〜11:27まで動画編集に取り組んだ」の形。終了のないものは「21:00から夕食を食べた」の形。未実施は含めない), done(今日できたこと。2〜4段落、段落は空行で区切る。各段落2〜3文で、時刻にも触れる), notdone(できなかったこと。1〜2段落。なければ「特になし」), why_done(なぜできたのか。2〜3段落。理由メモを元に), why_notdone(なぜできなかったのか。1〜2段落。なければ「特になし」), action(明日の改善。各1〜2文を2〜3項目、段落は空行で区切り「〜します」形), summary(総括。段落を空行で区切り、1段落目は今日の流れ、2段落目は良かった点、3段落目は課題、4段落目は今後の行動と明日の予定。最後の段落は必ず「これからもPDCAを継続し、できたことと改善すべきことを明確にしながら、日々の成長につなげていきます。」で終える), score(自己評価の提案、整数0-100), m_ok(今日達成できた曼荼羅の項目の配列。各要素は {k:項目キー, note:根拠の短い言葉(15字以内)}), m_focus(今日の重点の判定の配列。各要素は {k, s:"ok"か"ng"か"na", note:短い理由}), learned(学んだことを整えた文章。なければ空文字)';
- const usr=JSON.stringify({今日の記録:rec,今日最優先:d.top,明日の予定:t.plan.map(i=>i.n),明日最優先:t.top,過去の日報の見本:D.hist.filter(h=>h.d!=dt).slice(0,3).map(h=>h.text.slice(0,2500)),過去2週間のできなかった予定:missed(),昨夜の就寝時刻:(D.sleep||{})[sh(today(),-1)]||null,起床:wkInfo(d),学んだことのメモ:d.learn||'',今日の重点:(D.focus[dt]||[]).map(k=>k+' '+mitem(k)),曼荼羅の項目:allItems()});
+ const dt=today(),d=day(dt),t=day(tom()),b=document.getElementById('gb');if((d.mv||[]).some(m=>!m.e))return T('ボタンの記録が終了していません。「今日」で終了してください');if(!d.money.length&&!d.nomoney)return cf('今日の支出と収入が未入力です。「なし」として日報を作りますか？',()=>{d.nomoney=1;save();gen()});b.disabled=true;b.textContent='作成中…';
+ const rec=vp(d).map(i=>({予定:i.n,開始:i.s||null,終了:i.e||null,理由メモ:i.why||'',予定外:!!i.x}));
+ const sys='あなたは日報を書く本人（大学生）の代筆者です。与えられた記録だけを元に、事実を創作せず、一人称・です/ます調の自然な日本語で書きます。理由メモは短い断片なので、意味を汲んで1〜2文の文章に整えます。過去の日報の見本が渡された場合は、文体・言い回し・段落の長さをそれに合わせます(内容は写さない)。過去2週間のできなかった予定が渡された場合、今日にも当てはまる繰り返しの課題があれば、できなかった理由と改善に、事実の範囲で触れます。ボタン記録(移動・休憩・動画編集など)が渡された場合は、d_linesの時刻順に入れます。休憩は「15:00〜15:20まで休憩した」の形です。移動は、直前の予定と直後の予定から行き先を推測し、「7:30に家を出て大学に向かった」「10:50に大学を出て帰宅した」「18:30にジムに到着した」のように、出発または到着の時刻を主にして書きます。家・大学・ジム・バイト先のどこかが確実でないときは「12:00〜13:00まで移動した」とだけ書き、推測を断定しません。それ以外の種類(動画編集、大学課題など)は「13:00〜15:00まで動画編集に取り組んだ」の形で入れ、同じ内容の予定と重なるときは重複して書きません。ボタンで記録する予定が渡された場合、今日の記録分が1以上ならできたこととして、0ならできなかったこととして扱い、できなかった理由は推測せず「時間を確保できなかった」程度に留めます。起床の記録が渡された場合は、d_linesの最初に「6:58に起床し、目標（曼荼羅チャート）を確認した」の形で入れます。遅れた分が0なら、doneに7:05までに起きられたことを書きます。遅れた分が1以上なら、notdoneに「7:05までに起きる目標に対して◯分遅れた」と書き、why_notdoneに本人の理由メモを文章にし、actionの最初に、次から朝起きるための具体的な改善策を2〜3個、就寝時刻や理由メモを根拠に書きます。曼荼羅の項目は「キー 項目名」の一覧で渡されます。起床・目標確認・日報の継続・息抜き時間は判定済みなので対象外とし、他の項目は記録から明らかに達成できたものだけをm_okに入れ、無理に増やしません。今日の重点が渡された場合は、各項目について記録から判定し、m_focusに入れます。学んだことのメモが渡された場合は、summaryの中で自然に触れます(別の見出しにしない)。食事については、誰と食べたか(家族など)を書きません。記録にないことは足しません。昨夜の就寝時刻が渡された場合は、就寝が遅かった・早かったことを事実として触れます(睡眠不足などの推測はしない)。JSONのみで返します。キー: d_lines(実際に行ったこと。時刻順の文字列配列。開始と終了が同じ時刻のものは一瞬の出来事で「7:05に起床した」「7:30に家を出た」の形。開始と終了が違うものは「9:15〜11:27まで動画編集に取り組んだ」の形。終了のないものは「21:00から夕食を食べた」の形。未実施は含めない), done(今日できたこと。2〜4段落、段落は空行で区切る。各段落2〜3文で、時刻にも触れる), notdone(できなかったこと。1〜2段落。なければ「特になし」), why_done(なぜできたのか。2〜3段落。理由メモを元に), why_notdone(なぜできなかったのか。1〜2段落。なければ「特になし」), action(明日の改善。各1〜2文を2〜3項目、段落は空行で区切り「〜します」形), summary(総括。段落を空行で区切り、1段落目は今日の流れ、2段落目は良かった点、3段落目は課題、4段落目は今後の行動と明日の予定。最後の段落は必ず「これからもPDCAを継続し、できたことと改善すべきことを明確にしながら、日々の成長につなげていきます。」で終える), score(自己評価の提案、整数0-100), m_ok(今日達成できた曼荼羅の項目の配列。各要素は {k:項目キー, note:根拠の短い言葉(15字以内)}), m_focus(今日の重点の判定の配列。各要素は {k, s:"ok"か"ng"か"na", note:短い理由})';
+ const usr=JSON.stringify({今日の記録:rec,今日最優先:d.top,明日の予定:t.plan.map(i=>i.n),明日最優先:t.top,過去の日報の見本:D.hist.filter(h=>h.d!=dt).slice(0,3).map(h=>h.text.slice(0,2500)),過去2週間のできなかった予定:missed(),昨夜の就寝時刻:(D.sleep||{})[sh(today(),-1)]||null,起床:wkInfo(d),ボタン記録:(d.mv||[]).filter(m=>m.e).map(m=>mvCtx(d,m)),ボタンで記録する予定:d.plan.filter(i=>btnOf(i.n)).map(i=>{const k=btnOf(i.n);return{予定:i.n,ボタン:k,今日の記録分:(d.mv||[]).filter(m=>m.k==k&&m.e).reduce((a,m)=>a+mn(m.e)-mn(m.s),0)}}),学んだことのメモ:d.learn||'',今日の重点:(D.focus[dt]||[]).map(k=>k+' '+mitem(k)),曼荼羅の項目:allItems()});
  let a={};
  try{const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+D.key},body:JSON.stringify({model:D.model,response_format:{type:'json_object'},messages:[{role:'system',content:sys},{role:'user',content:usr}]})});
   const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status);a=JSON.parse(j.choices[0].message.content)}
  catch(e){T('AI作成に失敗: '+e.message+'\nAIなしの下書きを作ります。')}
  D.mj[dt]=mres(a,dt);D.draft={date:dt,text:build(a,dt)};save();go('rep')}
 function missed(){const lim=ds(new Date(Date.now()-14*864e5)),o={};
- for(const k in D.days){if(k<lim||k>=today())continue;for(const i of D.days[k].plan){if(i.e)continue;const e=o[i.n]=o[i.n]||{予定:i.n,できなかった回数:0,理由:[]};e.できなかった回数++;if(i.why)e.理由.push(i.why)}}
+ for(const k in D.days){if(k<lim||k>=today())continue;for(const i of D.days[k].plan){if(i.e||btnOf(i.n))continue;const e=o[i.n]=o[i.n]||{予定:i.n,できなかった回数:0,理由:[]};e.できなかった回数++;if(i.why)e.理由.push(i.why)}}
  return Object.values(o).filter(e=>e.できなかった回数>=2).sort((a,b)=>b.できなかった回数-a.できなかった回数).slice(0,10).map(e=>({...e,理由:e.理由.slice(-2)}))}
 function build(a,dt){
  const d=D.days[dt],t=day(tom()),m=mon(dt),L=x=>(x||[]).map(s=>'・'+s).join('\n');
@@ -282,28 +281,18 @@ async function cal2(date){
  const u=URL.createObjectURL(file),a=document.createElement('a');a.href=u;a.download=file.name;document.body.appendChild(a);a.click();a.remove();T(ev.length+'件を書き出しました')}
 
 /* 移動・空きの判定と空き時間の相談 */
-D.trans=D.trans||{};D.gfix=D.gfix||{};D.fixlog=D.fixlog||[];
-const DEFLOC='家に帰る=家\nオンライン=家\n家を出る=家\n起きる=家\n帰宅=家\n朝食=家\n昼食=家\n夕食=家\n大学=学校\n学校=学校\n授業=学校\nジム=ジム\nバイト=バイト\nシュープラザ=バイト';
-const TY=['移動','空き','用事'],MC={移動:'#a1a1aa',用事:'#52525b'};
 const mn=t=>{const[h,m]=t.split(':').map(Number);return (h<4?h+24:h)*60+m},fh=m=>Math.floor(m/60)+':'+pad(m%60);
-function locRules(){return (D.locText||DEFLOC).split('\n').map(l=>l.split('=').map(x=>x.trim())).filter(x=>x.length==2&&x[0]&&x[1])}
-function gapsOf(dk){const d=D.days[dk];if(!d)return[];const RL=locRules(),loc={},kw={};let cur='家';
- for(const i of d.plan){const m=RL.find(([k])=>i.n.includes(k));if(m){cur=m[1];kw[i.id]=m[0]}loc[i.id]=cur}
- const t=d.plan.filter(i=>i.s).sort((x,y)=>mn(x.s)-mn(y.s)),out=[];
- for(let j=0;j<t.length-1;j++){const a=t[j],b=t[j+1],s0=mn(a.e||a.s),s1=mn(b.s);if(s1-s0<5)continue;
-  const key=loc[a.id]+'>'+(kw[b.id]||loc[b.id]),fx=(D.gfix[dk]||{})[a.id+'|'+b.id];
-  out.push({a:a.id,b:b.id,an:a.n,bn:b.n,s:s0,e:s1,key,type:fx||D.trans[key]||(loc[a.id]==loc[b.id]?'空き':'移動')})}
- return out}
 function busyOf(dk){const d=D.days[dk];if(!d)return[];
  const r=d.plan.filter(i=>i.s&&i.e&&i.s!=i.e).map(i=>[mn(i.s),mn(i.e),'#09090b']).filter(x=>x[1]>x[0]);
- for(const g of gapsOf(dk))if(g.type!='空き')r.push([g.s,g.e,MC[g.type]]);return r}
-function wdays(w){return Object.keys(D.days).filter(k=>wd(k)==w&&k<today()&&D.days[k].plan.some(i=>i.s)).sort().slice(-4)}
+ (d.mv||[]).filter(m=>m.e&&mn(m.e)>mn(m.s)).forEach(m=>r.push([mn(m.s),mn(m.e),MVC(m.k)]));return r}
+function wdays(w){return Object.keys(D.days).filter(k=>wd(k)==w&&k<today()&&(D.days[k].plan.some(i=>i.s)||(D.days[k].mv||[]).some(m=>m.e))).sort().slice(-4)}
 function free(w){const ks=wdays(w),B={},fr=[];let st=null;ks.forEach(k=>B[k]=busyOf(k));
  for(let t=360;t<1440;t+=30){const bz=ks.filter(k=>B[k].some(([a,b])=>a<t+30&&b>t)).length,f=ks.length&&bz*2<ks.length;
   if(f&&st==null)st=t;if(!f&&st!=null){if(t-st>=60)fr.push([st,t]);st=null}}
  if(st!=null&&1440-st>=60)fr.push([st,1440]);return{ks,fr,B}}
 function stats(){const o={},lim=ds(new Date(Date.now()-28*864e5));
- for(const k in D.days){if(k<lim||k>=today())continue;for(const i of D.days[k].plan){const e=o[i.n]=o[i.n]||{回数:0,できた:0,分:0};e.回数++;if(i.e){e.できた++;if(i.s!=i.e)e.分+=mn(i.e)-mn(i.s)}}}
+ for(const k in D.days){if(k<lim||k>=today())continue;for(const i of D.days[k].plan){if(btnOf(i.n))continue;const e=o[i.n]=o[i.n]||{回数:0,できた:0,分:0};e.回数++;if(i.e){e.できた++;if(i.s!=i.e)e.分+=mn(i.e)-mn(i.s)}}}
+ for(const k in D.days){if(k<lim||k>=today())continue;for(const m of D.days[k].mv||[]){if(!m.e||m.k=='移動'||m.k=='休憩')continue;const e=o[m.k]=o[m.k]||{回数:0,できた:0,分:0};e.回数++;e.できた++;e.分+=mn(m.e)-mn(m.s)}}
  return Object.entries(o).slice(0,40).map(([n,v])=>({予定:n,...v}))}
 function CH(){D.chat=D.chat||{};return D.chat[sel]=D.chat[sel]||[]}
 const QS=['この空き時間に何を入れる？','詰まってる日だから休憩を入れたい','動画編集の時間をどこに入れる？'];
@@ -312,7 +301,7 @@ function vAn(){const w=sel,{ks,fr,B}=free(w),P=m=>((m-360)/1320*100).toFixed(2)+
 <div class="row wd">${[...WN].map((c,i)=>`<button class="${i==w?'p':''}" onclick="sel=${i};R()">${c}</button>`).join('')}</div>
 ${ks.length?`<div class=card>${ks.map(k=>`<div class=r style="align-items:center;margin:6px 0"><span class=sm style="width:48px">${+k.slice(5,7)}/${+k.slice(8)}</span><div style="position:relative;flex:1;height:22px;background:#e4e4e7;border-radius:6px;overflow:hidden">${B[k].map(([a,b,c])=>`<div style="position:absolute;top:0;bottom:0;left:${P(Math.max(a,360))};width:${((Math.min(b,1680)-Math.max(a,360))/1320*100).toFixed(2)}%;background:${c}"></div>`).join('')}</div></div>`).join('')}
 <div class=sm style="position:relative;height:18px;margin-left:56px">${[[6,'6時'],[12,'12時'],[18,'18時'],[24,'24時'],[28,'28時']].map(([h,l])=>`<span style="position:absolute;left:${(h-6)/22*100}%;transform:translateX(${h==28?'-100':h==6?'0':'-50'}%);font-size:12px">${l}</span>`).join('')}</div>
-<div class="r sm" style="margin:10px 0 0 56px;justify-content:flex-start;gap:14px"><span>■ 予定</span><span style="color:#71717a">■ 移動</span><span style="color:#52525b">■ 用事</span></div></div>
+<div class="r sm" style="margin:10px 0 0 56px;justify-content:flex-start;gap:14px"><span>■ 予定</span><span style="color:#a1a1aa">■ 移動</span><span style="color:#71717a">■ 休憩</span><span style="color:#3f3f46">■ 作業</span></div></div>
 <h2>共通の空き時間（1時間以上）</h2>${fr.length?fr.map(([a,b])=>`<div class="card r"><b>${fh(a)}〜${fh(b)}</b><span>${(b-a)/60}時間</span></div>`).join(''):'<p class=sm>1時間以上の共通の空きはありません。</p>'}`
  :'<p>この曜日の記録がまだありません。開始・終了を押した日がたまると表示されます。</p>'}
 <h2>${WN[w]}曜日の予定を相談する</h2>
@@ -320,15 +309,12 @@ ${ks.length?`<div class=card>${ks.map(k=>`<div class=r style="align-items:center
 <div>${CH().map((m,mi)=>m.r=='u'?`<div class=bu>${esc(m.t)}</div>`:`<div class=ba>${esc(m.t)}${(m.p||[]).map((x,pi)=>`<div class=pp><b>${esc(x.line)}</b><div class=sm>${esc(x.why)}</div><button style="margin-top:8px" onclick="addT(${mi},${pi})">${WN[w]}曜のテンプレに追加</button></div>`).join('')}</div>`).join('')}</div>
 <div class=row style="margin-top:12px"><input id=ci placeholder="例：この日は詰まってるから休憩にしたい" onkeydown="if(event.key=='Enter')send()"><button class=p onclick="send()">送信</button></div>
 ${CH().length?`<button class=big onclick="D.chat[sel]=[];save();R()">会話をリセット</button>`:''}`}
-function vGaps(){const g=gapsOf(today());if(!g.length)return'';
- return `<h2>移動・空きの判定</h2><p class=sm style="margin:0 0 4px">違っていたら選び直してください。次から同じ行き先は同じ判定になります。</p>`+g.map(x=>`<div class=card><div class=sm>${fh(x.s)}〜${fh(x.e)}　${esc(x.an)} → ${esc(x.bn)}</div><div class="row seg" style="margin-top:8px">${TY.map(t=>`<button class="${x.type==t?'p':''}" onclick="setG('${x.a}','${x.b}','${t}','${esc(x.key)}')">${t}</button>`).join('')}</div></div>`).join('')}
-function setG(a,b,t,key){const dk=today();D.gfix[dk]=D.gfix[dk]||{};D.gfix[dk][a+'|'+b]=t;D.trans[key]=t;D.fixlog.push({d:dk,判定:key,種類:t});D.fixlog=D.fixlog.slice(-50);save();R()}
 async function send(q){
  const t=(q||document.getElementById('ci').value).trim();if(!t)return;
  if(!D.key){T('設定でAPIキーを入れてください');return go('set')}
  const w=sel,h=CH();h.push({r:'u',t},{r:'a',t:'考え中…'});save();R();scrollTo(0,document.body.scrollHeight);
- const{ks,fr}=free(w),rec=ks.map(k=>({日付:k,予定:D.days[k].plan.map(i=>({名:i.n,開始:i.s||null,終了:i.e||null,理由メモ:i.why||''})),移動や用事:gapsOf(k).filter(g=>g.type!='空き').map(g=>({から:g.an,まで:g.bn,種類:g.type,分:g.e-g.s}))}));
- const sys='あなたは、本人の過去の記録を見ながら一緒に予定を考える時間管理のパートナーです。大学生でフリーランスの仕事もしている本人に、です/ます調で、簡潔に(3〜5文)話します。過去の記録や統計から根拠を示し、空き時間に入れる予定の提案、詰まった日の休憩の入れ方、予定の見直しに答えます。移動や用事の時間は、予定を入れられない時間として扱います。判定が違うと言われたときは、修正の履歴と判定の学習を参考にします。情報が足りないときは質問を1つだけします。睡眠・食事・移動の余裕を残します。決めつけず、最終判断は本人に任せます。具体的な予定を提案するときだけ proposals に入れ、各要素は line(「13:00〜14:00に動画編集を進める」の形の完成した1行。時刻は空き時間の範囲内)と why(理由1文)。雑談や質問だけのときは proposals を空配列にします。JSONのみで返します。キー: reply, proposals。\n\n【データ】'+JSON.stringify({曜日:WN[w]+'曜日',共通の空き時間:fr.map(([a,c])=>fh(a)+'〜'+fh(c)),現在のテンプレ:lines(D.tpl[w]||''),この曜日の過去の記録:rec,直近4週間の予定ごとの実績:stats(),場所のルール:locRules().map(x=>x.join('=')),判定の学習:D.trans,最近の修正:D.fixlog.slice(-20),直近の就寝時刻:Object.entries(D.sleep||{}).slice(-7).map(([k,v])=>k+' '+v)});
+ const{ks,fr}=free(w),rec=ks.map(k=>({日付:k,予定:D.days[k].plan.filter(i=>!btnOf(i.n)).map(i=>({名:i.n,開始:i.s||null,終了:i.e||null,理由メモ:i.why||''})),移動と休憩:(D.days[k].mv||[]).filter(m=>m.e).map(m=>({種類:m.k,開始:m.s,終了:m.e}))}));
+ const sys='あなたは、本人の過去の記録を見ながら一緒に予定を考える時間管理のパートナーです。大学生でフリーランスの仕事もしている本人に、です/ます調で、簡潔に(3〜5文)話します。過去の記録や統計から根拠を示し、空き時間に入れる予定の提案、詰まった日の休憩の入れ方、予定の見直しに答えます。移動・休憩・ボタンで記録した作業(動画編集など)の時間は、予定を入れられない時間として扱います。情報が足りないときは質問を1つだけします。睡眠・食事・移動の余裕を残します。決めつけず、最終判断は本人に任せます。具体的な予定を提案するときだけ proposals に入れ、各要素は line(「13:00〜14:00に動画編集を進める」の形の完成した1行。時刻は空き時間の範囲内)と why(理由1文)。雑談や質問だけのときは proposals を空配列にします。JSONのみで返します。キー: reply, proposals。\n\n【データ】'+JSON.stringify({曜日:WN[w]+'曜日',共通の空き時間:fr.map(([a,c])=>fh(a)+'〜'+fh(c)),現在のテンプレ:lines(D.tpl[w]||''),この曜日の過去の記録:rec,直近4週間の予定ごとの実績:stats(),直近の就寝時刻:Object.entries(D.sleep||{}).slice(-7).map(([k,v])=>k+' '+v)});
  const hist=h.slice(0,-1).map(m=>({role:m.r=='u'?'user':'assistant',content:m.t}));
  let out;
  try{const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+D.key},body:JSON.stringify({model:D.model,response_format:{type:'json_object'},messages:[{role:'system',content:sys},...hist]})});
@@ -341,7 +327,7 @@ function addT(mi,pi){D.tpl[sel]=(D.tpl[sel]||'').replace(/\s+$/,'')+'\n'+CH()[mi
 let TD=today(),TSEL=null;
 const sh=(dk,n)=>{const d=new Date(dk+'T00:00:00');d.setDate(d.getDate()+n);return ds(d)};
 function pt(n){let x=n.match(/(\d{1,2}):(\d{2})\s*[〜~～\-ー]\s*(\d{1,2}):(\d{2})/);if(x)return[+x[1]*60+ +x[2],+x[3]*60+ +x[4]];x=n.match(/(\d{1,2}):(\d{2})/);return x?[+x[1]*60+ +x[2],+x[1]*60+ +x[2]+30]:null}
-const planOf=dk=>D.days[dk]?D.days[dk].plan:lines(D.tpl[wd(dk)]||'').map((n,k)=>({id:'t'+k,n}));
+const planOf=dk=>(D.days[dk]?D.days[dk].plan:lines(D.tpl[wd(dk)]||'').map((n,k)=>({id:'t'+k,n}))).filter(i=>!btnOf(i.n));
 function layout(plan){const R=plan.map(i=>({i,t:pt(i.n)})),pos=R.map(r=>r.t);let j=0;
  while(j<R.length){if(pos[j]){j++;continue}let e=j;while(e<R.length&&!pos[e])e++;
   const c=e-j,pv=j>0?pos[j-1][1]:null,nx=e<R.length?pos[e][0]:null;let st,len=30;
@@ -349,23 +335,23 @@ function layout(plan){const R=plan.map(i=>({i,t:pt(i.n)})),pos=R.map(r=>r.t);let
   for(let q=0;q<c;q++)pos[j+q]=[st+q*len,st+q*len+len];j=e}
  return R.map((r,q)=>({i:r.i,s:pos[q][0],e:pos[q][1],fixed:!!r.t}))}
 function tline(dk){const PX=.9,Y=m=>(Math.min(Math.max(m,360),1680)-360)*PX,isT=dk==today(),dd=D.days[dk],
- act=dd?dd.plan.filter(i=>i.s):[],gp=dd?gapsOf(dk).filter(g=>g.type!='空き'):[],n=new Date(),nm=(n.getHours()<4?n.getHours()+24:n.getHours())*60+n.getMinutes();
+ act=dd?dd.plan.filter(i=>i.s):[],mvs=dd&&dd.mv?dd.mv:[],n=new Date(),nm=(n.getHours()<4?n.getHours()+24:n.getHours())*60+n.getMinutes();
  const bl=(l,w,s,e,st,txt,min,onc)=>`<div ${onc?`onclick="${onc}"`:''} style="position:absolute;left:${l};width:${w};top:${Y(s)}px;height:${Math.max(min,Y(e)-Y(s))}px;box-sizing:border-box;border-radius:8px;font-size:11px;line-height:1.25;padding:2px 5px;overflow:hidden;${st}">${esc(txt)}</div>`;
  return `<div style="position:relative;height:${1320*PX}px;margin:8px 0 8px 44px;border-left:1px solid #d4d4d8">
 ${[...Array(23)].map((_,q)=>`<div style="position:absolute;left:-44px;right:0;top:${q*60*PX}px;border-top:1px solid #ececee"><span style="position:absolute;left:0;top:-8px;width:38px;text-align:right;font-size:11px;color:#71717a">${(6+q)%24}:00</span></div>`).join('')}
 ${layout(planOf(dk)).map(x=>bl('4px','calc(50% - 6px)',x.s,x.e,`border:1.5px ${x.fixed?'solid':'dashed'} #09090b;background:${x.i.e?'#ececee':'#fff'};${TSEL==x.i.id?'box-shadow:0 0 0 3px rgba(9,9,11,.3);':''}`,x.i.n,22,isT?`TSEL='${x.i.id}';R()`:'')).join('')}
-${gp.map(g=>bl('calc(50% + 2px)','calc(50% - 6px)',g.s,g.e,'background:#d4d4d8;color:#52525b;',g.type,16)).join('')}
+${mvs.map(m=>bl('calc(50% + 2px)','calc(50% - 6px)',mn(m.s),m.e?mn(m.e):(isT?nm:mn(m.s)+15),'background:'+MVC(m.k)+';color:#fff;',m.k,16)).join('')}
 ${act.map(i=>{const a=mn(i.s),b=i.e?mn(i.e):Math.max(a+1,isT?nm:a+30);return bl('calc(50% + 2px)','calc(50% - 6px)',a,i.e&&i.s==i.e?a+15:b,'background:#09090b;color:#fff;',i.n,18)}).join('')}
 ${dd&&dd.wake&&dd.wake.t?bl('calc(50% + 2px)','calc(50% - 6px)',mn(dd.wake.t),mn(dd.wake.t)+15,'background:#09090b;color:#fff;','起床・目標確認',18):''}
 ${isT&&nm>=360&&nm<=1680?`<div style="position:absolute;left:-44px;right:0;top:${Y(nm)}px;border-top:2px solid #09090b;z-index:2"></div>`:''}</div>`}
-function nextCard(){const d=day(today()),i=d.plan.find(i=>i.s&&!i.e)||d.plan.find(i=>!i.s&&!i.k);if(!i)return'<div class=card><b>全部記録済みです</b></div>';const a=`'${i.id}'`;
+function nextCard(){const d=day(today()),P=vp(d),i=P.find(i=>i.s&&!i.e)||P.find(i=>!i.s&&!i.k);if(!i)return'<div class=card><b>全部記録済みです</b></div>';const a=`'${i.id}'`;
  return `<div class=card style="border:2px solid #09090b"><div class=sm>次にやること</div><b style="font-size:18px">${esc(i.n)}</b>${i.s?`<div class=tm>${i.s} 〜</div>`:''}<div class=row style="margin-top:10px">${!i.s?`<button class=p style="flex:1" onclick="st(${a})">開始</button><button style="flex:1" onclick="one(${a})">完了</button><button style="flex:.7" onclick="sk(${a})">飛ばす</button>`:`<button class=p style="flex:1" onclick="en(${a})">終了</button>`}</div></div>`}
 const sk=id=>{snap('飛ばす',id);F(id).k=1;save();R()};
 function TVW(){const d=day(today()),tv=D.tv||'list',isT=TD==today(),
  tog=`<div class="row seg" style="margin:12px 0"><button class="${tv=='list'?'p':''}" onclick="D.tv='list';save();R()">リスト</button><button class="${tv=='time'?'p':''}" onclick="D.tv='time';TD=today();R()">時間軸</button></div>`;
- if(tv=='list')return tog+(d.plan.length?d.plan.map(card).join(''):'<p>予定がありません。「予定」タブでテンプレを登録するか、下から追加。</p>');
+ if(tv=='list')return tog+(vp(d).length?vp(d).map(card).join('')+hid(d):'<p>予定がありません。「予定」タブでテンプレを登録するか、下から追加。</p>');
  return tog+(isT?nextCard():'')+`<div class=row style="align-items:center;justify-content:space-between"><button onclick="TD=sh(TD,-1);TSEL=null;R()">←</button><b>${+TD.slice(5,7)}/${+TD.slice(8)}（${WN[wd(TD)]}）${isT?'今日':''}</b><button onclick="TD=sh(TD,1);TSEL=null;R()">→</button></div>
-<div class="r sm" style="margin:10px 0 0 44px"><span style="flex:1">予定（点線は時刻なし）</span><span style="flex:1">実績</span></div>`+tline(TD)+(isT&&TSEL&&F(TSEL)?'<div class=sm>選択中の予定</div>'+card(F(TSEL)):'')}
+<div class="r sm" style="margin:10px 0 0 44px"><span style="flex:1">予定（点線は時刻なし）</span><span style="flex:1">実績</span></div>`+tline(TD)+(isT?hid(d):'')+(isT&&TSEL&&F(TSEL)?'<div class=sm>選択中の予定</div>'+card(F(TSEL)):'')}
 
 /* 就寝・バックアップ・残高の引き継ぎ */
 D.created=D.created||today();D.sleep=D.sleep||{};
@@ -390,7 +376,7 @@ let EDW=0;
 function wakeGo(){const d=day(today());d.wake={t:hm(),why:''};D.mconf=1;save();go('mand')}
 function tws(){const v=document.getElementById('tw').value;if(v)day(today()).wake.t=v;EDW=0;save();R()}
 function vWake(){const w=day(today()).wake;
- if(!w)return `<div class=card style="border:2px solid #09090b"><div class=sm>おはようございます</div><button class="p big" style="margin-top:8px" onclick="wakeGo()">目標を確認する（起床を記録）</button><button class=big style="min-height:40px;font-size:14px" onclick="day(today()).wake={skip:1};save();R()">今日は記録しない</button></div>`;
+ if(!w)return `<div class=card style="border:2px solid #09090b"><div class=sm>おはようございます</div><button class="p big" style="margin-top:8px" onclick="wakeGo()">目標を確認する（起床を記録）</button></div>`;
  if(w.skip||!w.t)return'';
  const late=mn(w.t)-425,fc=D.focus[today()]||[];
  return `<div class=card><div class=r style="align-items:center"><div><div class=sm>起床（7:05まで）</div>${EDW?`<input type=time id=tw value="${w.t}" style="width:auto"> <button class=p style="min-height:40px" onclick="tws()">保存</button>`:`<b style="font-size:20px"><a onclick="EDW=1;R()" style="border-bottom:2px solid #09090b">${w.t}</a></b> <span class=sm>${late>0?late+'分遅れ':'7:05以内 ✓'}</span>`}</div><button onclick="D.mconf=1;go('mand')">目標を見る</button></div>
@@ -413,9 +399,105 @@ function mres(a,dt){const ok={},f={},d=D.days[dt],w=d&&d.wake;
  (a.m_ok||[]).forEach(x=>{if(x&&KEYOK(x.k))ok[x.k]=x.note||''});
  (a.m_focus||[]).forEach(x=>{if(x&&KEYOK(x.k))f[x.k]={s:x.s,n:x.note||''}});
  if(w&&w.t&&!w.skip){ok['1-7']='朝に確認';if(mn(w.t)<=425)ok['1-0']=w.t.replace(/^0/,'')+'に起床'}
- ok['1-5']='日報を作成';return{ok,f}}
+ ok['1-5']='日報を作成';const rest=((d&&d.mv)||[]).filter(m=>m.k=='休憩'&&m.e).reduce((a,m)=>a+mn(m.e)-mn(m.s),0);if(rest>=10)ok['1-6']=rest+'分休憩';return{ok,f}}
 function mCard(dt){const j=D.mj[dt]||{ok:{}},ks=Object.keys(j.ok).filter(KEYOK).sort();return ks.length?`<div class=card><div class=sm>今日達成できた曼荼羅の項目（日報には入りません）</div>${ks.map(k=>`<div style="margin-top:6px;font-size:14px">● ${esc(D.mand.a[k[0]].n)}：${esc(mitem(k))}<span class=sm>${j.ok[k]?'（'+esc(j.ok[k])+'）':''}</span></div>`).join('')}</div>`:''}
 function MB(dt,a){const d=D.days[dt];let o='';
- const lr=(a.learned||'').trim()||((d&&d.learn)||'').trim();if(lr)o+='学んだこと\n\n→\n\n'+lr+'\n\n⸻\n\n';return o}
+ return o}
+
+/* 接続テスト */
+async function testKey(){if(!D.key)return T('APIキーを入力してください');T('確認中…');
+ try{const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+D.key},body:JSON.stringify({model:D.model,max_tokens:5,messages:[{role:'user',content:'ok'}]})});
+  if(r.ok)return T('接続OK：使えます（'+D.model+'）');const j=await r.json().catch(()=>({})),m=(j.error&&j.error.message)||r.status;
+  T(r.status==401?'キーが違います（401）':r.status==429?'クレジットが足りないか、利用上限です（429）':r.status==404?'モデル名が違います（404）':'エラー：'+m)}
+ catch(e){T('通信できません：'+e.message)}}
+/* 収支の入力もれ確認 */
+const setNM=v=>{day(today()).nomoney=v;save();R()};
+function mchk(d){const o=d.money.filter(x=>x.t!='in').length,i=d.money.length-o,none=!d.money.length,
+ hint=!d.money.some(x=>x.t!='in')&&(d.plan.some(p=>p.e&&/食/.test(p.n))||(d.mv||[]).some(m=>m.k=='移動'&&m.e));
+ return `<div class=card><div class=sm>今日の入力：支出${o}件・収入${i}件</div>${hint?'<div style="margin-top:6px">食事や移動の支出は、ありませんでしたか？</div>':''}${none?(d.nomoney?`<div class=r style="align-items:center;margin-top:8px"><b>「なし」で確定済み ✓</b><button onclick="setNM(0)">取消</button></div>`:`<button class=big onclick="setNM(1)">今日は支出・収入なし</button>`):''}</div>`}
+/* 移動・休憩・作業ボタン */
+const BTL=()=>lines(D.btnText||BTNDEF).slice(0,8),btnOf=n=>BTL().find(k=>n.includes(k))||null,vp=d=>d.plan.filter(i=>!btnOf(i.n)),
+ hid=d=>{const h=d.plan.filter(i=>btnOf(i.n));return h.length?`<p class=sm>ボタンで記録する予定：${h.map(i=>esc(i.n)).join('、')}</p>`:''};
+const BTNDEF='移動\n休憩\n動画編集\n大学課題',MVC=k=>k=='移動'?'#a1a1aa':k=='休憩'?'#71717a':'#3f3f46';
+function mvCtx(d,m){const t=d.plan.filter(i=>i.s).map(i=>({n:i.n,s:mn(i.s),e:mn(i.e||i.s)})),a=mn(m.s),b=mn(m.e),
+ pv=t.filter(x=>x.e<=a+5).sort((x,y)=>y.e-x.e)[0],nx=t.filter(x=>x.s>=b-5).sort((x,y)=>x.s-y.s)[0];
+ return{種類:m.k,開始:m.s,終了:m.e,直前の予定:pv?pv.n:null,直後の予定:nx?nx.n:null}}
+const mvOpen=d=>{const l=d.mv||[],m=l[l.length-1];return m&&!m.e?m:null};
+function mvTog(k){const d=day(today()),o=mvOpen(d),n=hm();d.mv=d.mv||[];if(o){o.e=n;if(o.k==k){save();return R()}}d.mv.push({k,s:n});save();R()}
+const mvDel=i=>{day(today()).mv.splice(i,1);save();R()},mvSet=(i,k,v)=>{const m=day(today()).mv[i];if(v){m[k]=v;save()}};
+function vMv(){const d=day(today()),l=d.mv||[],o=mvOpen(d),BT=lines(D.btnText||BTNDEF).slice(0,8),
+ tot=k=>l.filter(m=>m.k==k&&m.e).reduce((a,m)=>a+mn(m.e)-mn(m.s),0),
+ btn=k=>o&&o.k==k?`<button class=p onclick="mvTog('${esc(k)}')">${esc(k)}を終了（${o.s}〜）</button>`:`<button onclick="mvTog('${esc(k)}')">${esc(k)}を開始</button>`,
+ sum=[...new Set(l.filter(m=>m.e).map(m=>m.k))].map(k=>k+' '+tot(k)+'分').join('　');
+ return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 8px">${BT.map(btn).join('')}</div>${l.length?`<div class=card>${l.map((m,i)=>`<div class=r style="align-items:center;gap:6px;margin:6px 0"><span class=sm style="width:64px;font-size:12px">${esc(m.k)}</span><input type=time value="${m.s}" style="flex:1;min-width:0;padding:8px" onchange="mvSet(${i},'s',this.value)"><span>〜</span>${m.e?`<input type=time value="${m.e}" style="flex:1;min-width:0;padding:8px" onchange="mvSet(${i},'e',this.value)">`:'<span class=sm style="flex:1">進行中</span>'}<button class=x onclick="mvDel(${i})">×</button></div>`).join('')}<div class=sm>${sum}</div></div>`:''}`}
+
+/* バイトのシフト */
+D.shifts=D.shifts||{};D.shiftName=D.shiftName||'シュープラザのアルバイト';D.shiftJ=D.shiftJ||{};D.jobs=D.jobs||D.shiftName;
+for(const k in D.shifts){const v=D.shifts[k];if(typeof v=='string')D.shifts[k]=[{t:v,j:(D.shiftJ||{})[k]||lines(D.jobs)[0]||D.shiftName}]}const SHDEF='9:45〜16:00\n9:45〜18:00\n12:00〜20:30\n17:00〜20:30\n17:00〜20:45\n17:30〜20:30\n19:00〜20:45';
+D.shiftPre=D.shiftPre||SHDEF;if(D.shiftPre==='12:00〜20:30\n17:00〜21:00')D.shiftPre=SHDEF;
+let TPV='tpl',SHM=today().slice(0,7),SHD=null,SHB='',SHJ='';
+const curJob=()=>SHJ||lines(D.jobs)[0]||D.shiftName;
+const TPS=()=>`<div class="row seg" style="margin:8px 0"><button class="${TPV=='tpl'?'p':''}" onclick="TPV='tpl';R()">曜日のテンプレ</button><button class="${TPV=='shift'?'p':''}" onclick="TPV='shift';R()">月の予定</button></div>`;
+function insT(plan,it){const x0=pt(it.n);if(!x0){plan.push(it);return plan}const st=x0[0];let at=-1;plan.forEach((p,q)=>{const x=pt(p.n);if(x&&x[0]<=st)at=q});
+ if(at>=0)at++;else{at=plan.findIndex(p=>{const x=pt(p.n);return x&&x[0]>st});if(at<0)at=plan.length}plan.splice(at,0,it);return plan}
+const shL=dk=>(D.shifts||{})[dk]||[],stM=t=>{const m=String(t).match(/(\d+):(\d+)/);return m?+m[1]*60+ +m[2]:0};
+function insSh(plan,dk){shL(dk).forEach(x=>insT(plan,{id:uid(),n:x.t+'まで'+x.j,sh:1}));return plan}
+function mkPlan(dk){const sk=(D.skips||{})[dk]||[],p=lines(D.tpl[wd(dk)]||'').filter(n=>!sk.includes(n)).map(n=>({id:uid(),n}));
+ ((D.events||{})[dk]||[]).forEach(e=>insT(p,{id:uid(),n:e.n,ev:1}));return insSh(p,dk)}
+function applyShift(dk){const d=D.days[dk];if(!d)return;const sk=(D.skips||{})[dk]||[],kept=d.plan.filter(i=>i.sh&&i.s).map(i=>i.n);
+ d.plan=d.plan.filter(i=>{if(i.s)return true;if(i.sh||i.ev)return false;return !sk.includes(i.n)});
+ ((D.events||{})[dk]||[]).forEach(e=>{if(!d.plan.some(i=>i.ev&&i.n==e.n))insT(d.plan,{id:uid(),n:e.n,ev:1})});
+ shL(dk).forEach(x=>{const n=x.t+'まで'+x.j;if(!kept.includes(n))insT(d.plan,{id:uid(),n,sh:1})})}
+function addEv(){const nm=document.getElementById('ev').value.trim(),a=document.getElementById('ea').value,b=document.getElementById('eb').value,v=a&&b?a.replace(/^0/,'')+'〜'+b.replace(/^0/,'')+' '+nm:nm;if(!nm||!SHD)return;D.events=D.events||{};(D.events[SHD]=D.events[SHD]||[]).push({id:uid(),n:v});applyShift(SHD);save();R()}
+function delEv(i){D.events[SHD].splice(i,1);applyShift(SHD);save();R()}
+function togSkip(i){const n=lines(D.tpl[wd(SHD)]||'')[i];D.skips=D.skips||{};const sk=D.skips[SHD]=D.skips[SHD]||[],q=sk.indexOf(n);
+ if(q>=0){sk.splice(q,1);const d=D.days[SHD];if(d&&!d.plan.some(p=>p.n==n))insT(d.plan,{id:uid(),n})}else sk.push(n);applyShift(SHD);save();R()}
+function shPut(dk,l){if(l.length)D.shifts[dk]=l.sort((a,b)=>stM(a.t)-stM(b.t));else delete D.shifts[dk];applyShift(dk);save()}
+function shSet(dk,t,j){const l=shL(dk).map(x=>({...x})),q=l.findIndex(x=>x.j==j);if(q>=0&&l[q].t==t)l.splice(q,1);else if(q>=0)l[q]={t,j};else l.push({t,j});shPut(dk,l)}
+function shDel(dk,j){shPut(dk,shL(dk).filter(x=>x.j!=j));R()}
+function shTap(k){SHD=k;if(SHB===''){R();return}if(SHB=='-')return shDel(k,curJob());shSet(k,SHB,curJob());R()}
+function shMove(n){const[y,m]=SHM.split('-').map(Number),d=new Date(y,m-1+n,1);SHM=d.getFullYear()+'-'+pad(d.getMonth()+1);SHD=null;R()}
+function shCustom(){const a=document.getElementById('sa').value,b=document.getElementById('sb').value;if(!a||!b)return T('開始と終了を入れてください');shSet(SHD,a.replace(/^0/,'')+'〜'+b.replace(/^0/,''),curJob());R()}
+function shSame(){const l=JSON.parse(JSON.stringify(shL(SHD))),w=wd(SHD),[y,m]=SHM.split('-').map(Number),n=new Date(y,m,0).getDate();
+ for(let q=1;q<=n;q++){const k=SHM+'-'+pad(q);if(wd(k)==w)shPut(k,JSON.parse(JSON.stringify(l)))}R();T('同じ曜日すべてに反映しました')}
+function vShift(){const[y,m]=SHM.split('-').map(Number),n=new Date(y,m,0).getDate(),f=new Date(y,m-1,1).getDay(),cells=[...Array(f).fill(0),...Array.from({length:n},(_,q)=>q+1)],
+ inM=SHD&&SHD.slice(0,7)==SHM,cur=inM?shL(SHD):[],cnt=Object.keys(D.shifts).filter(k=>k.slice(0,7)==SHM).length;
+ return `<h1>月の予定</h1>${TPS()}<p class=sm style="margin:0">バイトのシフトと、歯医者などの単発の予定を、日付ごとに入れます。</p>
+<div class=sm style="margin:8px 0 4px">バイト先</div><div class=row style="flex-wrap:wrap;gap:6px">${lines(D.jobs).map(j=>`<button class="${curJob()==j?'p':''}" onclick="SHJ='${esc(j)}';R()">${esc(j)}</button>`).join('')}</div>
+<div class=sm style="margin:12px 0 4px">シフトを選んでから、日付をタップ（同じバイト先なら、もう一度タップで消えます。別のバイト先なら、同じ日に追加されます）</div><div class=row style="flex-wrap:wrap;gap:6px"><button class="${SHB===''?'p':''}" onclick="SHB='';R()">選択</button>${lines(D.shiftPre).map(x=>`<button class="${SHB==x?'p':''}" onclick="SHB='${esc(x)}';R()">${esc(x)}</button>`).join('')}<button class="${SHB=='-'?'p':''}" onclick="SHB='-';R()">消す</button></div>
+<div class=r style="align-items:center;margin-top:12px"><button onclick="shMove(-1)">←</button><b>${y}年${m}月（${cnt}日）</b><button onclick="shMove(1)">→</button></div>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0">${[...WN].map(c=>`<div class=sm style="text-align:center">${c}</div>`).join('')}${cells.map(q=>{if(!q)return'<div></div>';const k=SHM+'-'+pad(q),v=shL(k);return `<button onclick="shTap('${k}')" style="min-height:52px;padding:2px;border-radius:10px;font-size:13px;line-height:1.2;${v.length?'background:#09090b;color:#fff;':''}${SHD==k?'box-shadow:0 0 0 3px rgba(9,9,11,.35);':''}">${q}${((D.events||{})[k]||[]).length||((D.skips||{})[k]||[]).length?'・':''}${v.map(x=>`<div style="font-size:10px">${lines(D.jobs).length>1?esc(x.j.slice(0,1))+' ':''}${x.t.replace('〜','-').replace(/:00/g,'')}</div>`).join('')}</button>`}).join('')}</div>
+${inM?`<div class=card><b>${+SHD.slice(5,7)}/${+SHD.slice(8)}（${WN[wd(SHD)]}）${cur.length?'':'　シフトなし'}</b>${cur.map(x=>`<div class=r style="align-items:center;margin:4px 0"><span>${esc(x.t)}（${esc(x.j)}）</span><button class=x onclick="shDel(SHD,'${esc(x.j)}')">×</button></div>`).join('')}
+<div class=sm style="margin:8px 0 4px">よく使うシフトから選ぶ</div><div class=row style="flex-wrap:wrap">${lines(D.shiftPre).map(x=>`<button class="${cur.some(y=>y.t==x&&y.j==curJob())?'p':''}" style="flex:1;min-width:120px" onclick="shSet(SHD,'${esc(x)}',curJob());R()">${esc(x)}</button>`).join('')}<button style="flex:1;min-width:120px" onclick="shPut(SHD,[]);R()">すべてなし</button></div>
+<div class=sm style="margin:12px 0 4px">時間を指定する</div><div class=row><input type=time id=sa value="12:00"><input type=time id=sb value="20:30"></div><button class=big onclick="shCustom()">この時間にする</button>
+<button class=big onclick="shSame()">この日のシフトを、同じ曜日すべてに反映</button>
+<div class=sm style="margin:14px 0 4px">単発の予定（歯医者など）</div>${((D.events||{})[SHD]||[]).map((e,i)=>`<div class=r style="align-items:center;margin:4px 0"><span>${esc(e.n)}</span><button class=x onclick="delEv(${i})">×</button></div>`).join('')}<div class=row style="margin-top:6px"><input id=ev placeholder="例：歯医者"><button onclick="addEv()">追加</button></div><div class=row style="margin-top:6px"><input type=time id=ea><input type=time id=eb></div><p class=sm style="margin:4px 0 0">時間は空欄でも追加できます。</p>
+<div class=sm style="margin:14px 0 4px">この日だけ外す予定（休講など）</div>${lines(D.tpl[wd(SHD)]||'').map((n,i)=>{const o=((D.skips||{})[SHD]||[]).includes(n);return `<button class="${o?'p':''}" style="width:100%;margin-top:6px;text-align:left" onclick="togSkip(${i})">${o?'外す ✓　':''}${esc(n)}</button>`}).join('')||'<p class=sm>この曜日のテンプレはありません。</p>'}</div>`:'<p class=sm>日付をタップして、シフトを入れてください。</p>'}
+<label>バイト先（1行1つ）</label><textarea rows=3 oninput="D.jobs=this.value;save()">${esc(D.jobs)}</textarea><p class=sm>追加すると、上のバイト先のボタンに出ます。日付ごとに、選んだバイト先が記憶されます。</p>
+<label>よく使うシフト（1行1つ「12:00〜20:30」の形）</label><textarea rows=3 oninput="D.shiftPre=this.value;save();">${esc(D.shiftPre)}</textarea>`}
+
+/* 明日の時間の提案 */
+let ES=null;
+function durStats(){const lim=ds(new Date(Date.now()-28*864e5)),o={},add=(n,a,b)=>{const e=o[n]=o[n]||{n:0,t:0,st:0};e.n++;e.t+=b-a;e.st+=a};
+ for(const k in D.days){if(k<lim||k>=today())continue;const d=D.days[k];
+  d.plan.forEach(i=>{if(i.s&&i.e&&i.s!=i.e)add(i.n.replace(/^\d{1,2}:\d{2}(〜\d{1,2}:\d{2})?(まで|に|から)?/,''),mn(i.s),mn(i.e))});
+  (d.mv||[]).forEach(m=>{if(m.e)add(m.k,mn(m.s),mn(m.e))})}
+ return Object.entries(o).slice(0,40).map(([n,e])=>({予定:n,回数:e.n,平均分:Math.round(e.t/e.n),平均開始:fh(Math.round(e.st/e.n))}))}
+function vSug(){return `<button class="p big" id=sg onclick="sugTime()">時間の提案をもらう</button>${ES?`<div class=card><p style="margin:0 0 8px">${esc(ES.comment||'')}</p>${(ES.schedule||[]).map(x=>`<div style="margin-top:8px"><b>${esc(x.s)}〜${esc(x.e)}　${esc(x.n)}${x.add?'（追加）':''}</b><div class=sm>${esc(x.note||'')}</div></div>`).join('')}<button class="p big" onclick="applySched()">この時間を予定に反映</button></div>`:''}`}
+async function sugTime(){
+ if(!D.key){T('設定でAPIキーを入れてください');return go('set')}
+ const t=day(tom()),b=document.getElementById('sg');b.disabled=true;b.textContent='考え中…';
+ const sys='あなたは時間管理のパートナーです。明日の予定のうち、時刻のないものに開始・終了時刻を提案します。時刻の入っている予定(授業・バイト・出発時刻など)は固定で、動かしません。起床と目標確認は、別のボタンで記録するので、予定には追加しません(起床は7:05までに済ませる前提で逆算します)。固定の予定の前は、移動時間と準備(着替え・歯磨きなど。実績がなければ15分程度)を逆算し、「9:00の授業に間に合うよう8:20までに食べ終える」「◯時に家を出る」のように、何時までに何を終えるかを示します。動画編集や大学課題など作業は、空いている時間のうち、過去の平均開始時刻と所要時間に近い枠に入れます。食事・睡眠・休憩を削らず、予定が重ならないようにします。実績が少ないものは一般的な目安で、その旨をnoteに書きます。食事について誰と食べたかは書きません。着替え・歯磨きなど予定にないが必要なものは add:true で追加できます。JSONのみで返します。キー: comment(全体の所感を2〜3文。です/ます調), schedule(時刻順の配列。各要素は {n:予定名(予定にあるものは文をそのまま、追加するものは新しい名前), s:"HH:MM", e:"HH:MM", add:true か false, note:根拠を1文})';
+ const w=Object.keys(D.days).filter(k=>D.days[k].wake&&D.days[k].wake.t).sort().slice(-7).map(k=>D.days[k].wake.t);
+ try{const r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+D.key},body:JSON.stringify({model:D.model,response_format:{type:'json_object'},messages:[{role:'system',content:sys},{role:'user',content:JSON.stringify({明日:WN[wd(tom())]+'曜日',明日の予定:t.plan.map(i=>i.n),過去4週間の所要時間と開始時刻:durStats(),最近の起床時刻:w,最近の就寝時刻:Object.entries(D.sleep||{}).slice(-7).map(([k,v])=>k+' '+v)})}]})});
+  const j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status);ES=JSON.parse(j.choices[0].message.content)}
+ catch(e){T('提案に失敗: '+e.message)}
+ R()}
+function sortPlan(p){let pv=0;return p.map((i,q)=>{const x=pt(i.n),k=x?x[0]:pv+0.01;pv=k;return{i,k,q}}).sort((a,b)=>a.k-b.k||a.q-b.q).map(a=>a.i)}
+function applySched(){const t=day(tom()),z=v=>String(v||'').replace(/^0/,'');
+ (ES.schedule||[]).forEach(x=>{if(!x||!x.n||!x.s||!x.e)return;const nm=`${z(x.s)}〜${z(x.e)}まで${x.n}`;
+  if(x.add){if(!t.plan.some(p=>p.n.includes(x.n)))insT(t.plan,{id:uid(),n:nm})}
+  else{const it=t.plan.find(p=>p.n==x.n&&!pt(p.n))||t.plan.find(p=>!pt(p.n)&&p.n.includes(x.n));if(it)it.n=`${z(x.s)}〜${z(x.e)}まで${it.n}`}});
+ t.plan=sortPlan(t.plan);ES=null;save();R();T('予定に反映しました')}
 R();
 </script></body></html>
